@@ -15,14 +15,23 @@ import video from "../assets/images/Celestial Empires_1920x1080.mp4";
 import avt from "../assets/images/metacooler_design_Comic_book_style_Strong_Black_outline_image_o_3c7be38d-9097-4a16-bb4f-82120566370e.webp";
 
 // Helper function to convert base64 to Uint8Array
-function base64ToUint8Array(base64String) {
-    const binary = window.atob(base64String);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
+// function base64ToUint8Array(base64String) {
+//     const binary = window.atob(base64String);
+//     const bytes = new Uint8Array(binary.length);
+//     for (let i = 0; i < binary.length; i++) {
+//         bytes[i] = binary.charCodeAt(i);
+//     }
+//     return bytes;
+// }
+function base64ToUint8Array(base64) {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes;
-}
+  }
 
 // Function to log wallet balance
 const logWalletBalance = async (walletAddress) => {
@@ -168,29 +177,39 @@ function Header() {
     // Example function to request Candy Machine creation from the server
     // Then sign & send with Phantom as the fee payer.
     const handleCreateCandyMachine = async () => {
-        if (!wallet) {
-          alert("Please connect a wallet first!");
-          return;
+        try {
+            const userPubkey = wallet.toString();
+            const response = await fetch("http://localhost:8080/create-candy-machine", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userPubkey }),
+            });
+
+            const data = await response.json();
+
+            // Log the received base64 transaction
+            console.log("Received Base64 Transaction:", data.transaction);
+
+            if (!data.transaction) {
+                throw new Error("Received an undefined or null transaction from the server.");
+            }
+
+            const transactionBytes = base64ToUint8Array(data.transaction);
+
+            // Log the decoded transaction bytes
+            console.log("Decoded Transaction Bytes:", transactionBytes);
+
+            const versionedTx = VersionedTransaction.deserialize(transactionBytes);
+
+            // Log the deserialized transaction
+            console.log("Deserialized Versioned Transaction:", versionedTx);
+
+            const { signature } = await window.solana.signAndSendTransaction(versionedTx);
+            console.log("Candy Machine creation signature =>", signature);
+        } catch (error) {
+            console.error("Error in handleCreateCandyMachine:", error);
         }
-        // 1) Request partial transaction from the server
-        const userPubkey = wallet.toString();
-        const response = await fetch("http://localhost:8080/create-candy-machine", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userPubkey }),
-        });
-        const data = await response.json();
-      
-        // 2) Decode
-        const transactionBytes = base64ToUint8Array(data.transaction);
-        const versionedTx = VersionedTransaction.deserialize(transactionBytes);
-        // const transaction = Transaction.from(transactionBytes);
-      // Now call Phantom’s signAndSendTransaction:
-const { signature } = await window.solana.signAndSendTransaction(versionedTx);
-        // 3) Let Phantom set feePayer & sign as fee payer
-        // const { signature } = await window.solana.signAndSendTransaction(transaction);
-        console.log("Transaction signature =>", signature);
-      };
+    };
     return (
         <div id="top-div">
             <video autoPlay muted loop id="background-video">
